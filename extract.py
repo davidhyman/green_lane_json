@@ -17,9 +17,11 @@ from typing import List, Dict, Generator, Tuple, Iterable, Optional, NamedTuple
 
 clean_text_re = re.compile('[^\w\n\ \.\,]+')
 
+
 class LatLon(NamedTuple):
     lat: float
     lon: float
+
 
 @dataclass
 class Feature:
@@ -44,12 +46,12 @@ class Feature:
     @cached_property
     def poly_line(self) -> List[LatLon]:
         return [LatLon(c[1], c[0]) for c in self.coords]
-    
-    def compressed_poly_line(self, epsilon:float=5e-5) -> List[LatLon]:
+
+    def compressed_poly_line(self, epsilon: float = 1e-4) -> List[LatLon]:
         # https://gis.stackexchange.com/a/8674
         crushed = rdp.rdp(self.poly_line, epsilon=epsilon)  # maximum deviation
         return [LatLon(*c) for c in crushed]
-    
+
     @property
     def can_use(self):
         """can we actually use this byway"""
@@ -61,7 +63,7 @@ class Feature:
     @property
     def centre(self) -> LatLon:
         line = self.poly_line
-        return line[len(line)//2]
+        return line[len(line) // 2]
 
     @property
     def distance(self) -> float:
@@ -82,7 +84,7 @@ def feature_gen(content: List[Dict]) -> Generator[Feature, None, None]:
         full_coords = [d[0:2] for d in full_coords]  # strip out height/elevation third coord
         try:
             # https://gis.stackexchange.com/a/8674
-            crush_coords = rdp.rdp(full_coords, epsilon=5e-5)  # maximum deviation
+            crush_coords = rdp.rdp(full_coords, epsilon=1e-4)  # maximum deviation
         except Exception:
             print(full_coords)
             raise
@@ -109,7 +111,7 @@ def feature_gen(content: List[Dict]) -> Generator[Feature, None, None]:
         pbar.update()
 
 
-def geo_deref(uk_post_code:str) -> LatLon:
+def geo_deref(uk_post_code: str) -> LatLon:
     nomi = pgeocode.Nominatim("GB")
     response = nomi.query_postal_code(uk_post_code)
     pprint.pprint(response)
@@ -185,19 +187,18 @@ def extract(filepath: Path, postcode: str, radius: float) -> List[Feature]:
         full_point_count += f.original_coord_length
         total_length += f.length
 
-
     # TODO: Geod.line_length() from pyproj to calculate length of the byway itself?
 
     for f in sorted(skippers, key=attrgetter("distance")):
-        print(f"skip byway: {f.grmuid}\t{f.distance/1000:.2f}km away\t{f.length}\t{f.name}\t{f.membermessage[:64]}")
-
+        print(f"skip byway: {f.grmuid}\t{f.distance / 1000:.2f}km away\t{f.length}\t{f.name}\t{f.membermessage[:64]}")
 
     # for f in sorted(keepers, key=attrgetter("distance")):
     #     print(f"{f.grmuid}\t{f.distance/1000:.2f}km\t{f.name}\t{f.membermessage[:64]}")
 
-    cr = 100*((full_point_count - point_count) / full_point_count)
-    print(f"{len(keepers)} segments, {point_count}(compressed from {full_point_count} {cr:.1f}%) points selected (of {len(content['features'])} lanes)")
-    print(f"{total_length/1000} km of lanes to ride (???)")
+    cr = 100 * ((full_point_count - point_count) / full_point_count)
+    print(
+        f"{len(keepers)} segments, {point_count}(compressed from {full_point_count} {cr:.1f}%) points selected (of {len(content['features'])} lanes)")
+    print(f"{total_length / 1000} km of lanes to ride (???)")
     return keepers
 
 
@@ -210,7 +211,7 @@ def export(gpx: gpxpy.gpx.GPX):
 def run():
     postcode = "GL9 1"
     radius = 60e3
-    features = extract(Path("results3.json"), postcode, radius)
+    features = extract(Path("results3-09_06_24.json"), postcode, radius)
     short_postcode = postcode.replace(" ", "")
     short_date = datetime.date.today().isoformat()
     title = f"TRF GRM mono - {short_postcode} {radius / 1000:.0f}km {short_date}"

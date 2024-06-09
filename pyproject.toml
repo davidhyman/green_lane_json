@@ -1,0 +1,9 @@
+[project]
+name = "grm_export"
+dependencies = [
+    "enlighten",
+    "gpxpy",
+    "pgeocode",
+    "pyproj",
+    "rdp",
+]
