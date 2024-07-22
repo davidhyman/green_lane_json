@@ -5,5 +5,7 @@ dependencies = [
     "gpxpy",
     "pgeocode",
     "pyproj",
+    "pydantic",
+    "pydantic-settings",
     "rdp",
 ]

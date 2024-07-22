@@ -1,4 +1,8 @@
 .idea/
 *.gpx
 *.json
+*.spec
+*.py[cod]
 .venv
+build/
+dist/
