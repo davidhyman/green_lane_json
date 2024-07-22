@@ -4,31 +4,32 @@ Extracts gps traces from the Trail Riders Federation dataset for the Green Road 
 
 This project is hosted on https://github.com/davidhyman/green_lane_json
 
-# What is it?
-Intended for use by registered TRF members to load routes into their GPS devices and hence access them
+This is intended for use by registered TRF members to load routes into their GPS devices and hence access them
 when offline in areas of poor internet connectivity, as commonly encountered in rural areas where these lanes
 are found.
 
 # What do I need?
-Obtain the latest TRF json file at "https://beta.greenroadmap.org.uk/json/results3.json?1721653721440"
+1. Obtain the latest TRF json file at: https://beta.greenroadmap.org.uk/json/results3.json?1721653721440
 
-Obtain `trf_export.exe` from this project.
+> You need to be a logged in member to retrieve this. Use the F12 network tab in your browser to find it (the name or location may change over time).
+> 
+> It is recommended to name the file locally with the date so you can have multiple copies and can refer back to it to see how current it is.
 
-You need to be a logged in member to retrieve this. Use the F12 network tab in your browser to find it (the name or location may change over time).
+2. Obtain the latest `trf_export.exe` from this project: https://github.com/davidhyman/green_lane_json/releases
 
-It is recommended to name the file locally with the date so you can refer back to it and see how current it is.
-The tool will output multiple files;
-- multi - saves each track as an individual route, very poor performance on some devices, but most granularity.
-- mono - saves all tracks together as sections under one route, much better performance but on some
+# What does it do?
+The `trf_export.exe` tool will output multiple files;
+- `multi` - saves each track as an individual route, very poor performance on some devices, but most granularity.
+- `mono` - saves all tracks together as sections under one route, much better performance but on some
   Garmin devices results in start/end points of sections being joined by straight lines (unusable...).
   Known to work well on "GPX viewer pro".
 
 It also splits the routes into groups according to the TRO status, presently:
-- `good`; ready to go!
-- `closed`; closed (indefinitely?) see GRM for details
-- `dubious`; any other category (e.g. seasonal TRO)
-- `deadend`; safe to ride, but you'll have to double back
-- `not_closed`; includes all of the above that's not `closed`
+- `good` - ready to go!
+- `closed` - closed (indefinitely?) see GRM for details
+- `dubious` - any other category (e.g. seasonal TRO)
+- `deadend` - safe to ride, but you'll have to double back
+- `not_closed` - includes all of the above that's not `closed`
 
 You may wish to import the groups and set different colours on your device, and/or pay special attention to their current legality at the time of your access.
 
@@ -38,12 +39,12 @@ Phone/tablet apps that probably work include; gaia, osmand, gpx viewer pro, outd
 
 # Usage
 
-Run this in a [terminal](https://towardsdatascience.com/a-quick-guide-to-using-command-line-terminal-96815b97b955):
+Run this in a terminal ([help?!](https://towardsdatascience.com/a-quick-guide-to-using-command-line-terminal-96815b97b955)):
 ```shell
 trf_export.exe -h
 ```
 
-Display the help:
+Displays the help:
 ```shell
 trf_export.exe -h
 
@@ -61,9 +62,9 @@ options:
 
 Run on the TRF json for 30km around Cambridge (CB1):
 ```shell
-.\dist\trf_export\trf_export.exe .\results3.json CB1 30000
+trf_export.exe results3.json CB1 30000
 ```
-This will then print some progress messages and deposit the .gpx files in the current directory.
+This will then print some progress messages and deposit the `.gpx` files in the current directory. Enjoy responsibly! 🍻
 
 
 # Disclaimer
@@ -80,3 +81,5 @@ For more information see https://beta.greenroadmap.org.uk/terms-of-use.
 You should probably check your route with the latest TRO status on the live GRM map before riding.
 
 Tool is provided as-is and copyrighted to the author. No warranty given or liability accepted.
+
+# 🗺️🚦
