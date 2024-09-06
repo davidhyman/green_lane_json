@@ -6,3 +6,5 @@
 .venv
 build/
 dist/
+/_grmcache/
+/grm_export.egg-info/

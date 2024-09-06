@@ -1,8 +1,11 @@
 [project]
 name = "grm_export"
+version = "2.0"
 dependencies = [
+    "diskcache",
     "enlighten",
     "gpxpy",
+    "mapbox-vector-tile",
     "pgeocode",
     "pyproj",
     "pydantic",

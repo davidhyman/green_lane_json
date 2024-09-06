@@ -51,7 +51,6 @@ trf_export.exe -h
 Extracts gps traces from the TRF dataset. See README.md or https://github.com/davidhyman/green_lane_json for instructions.
 
 positional arguments:
-  SOURCE_FILE   Location of source data file (.json).
   POSTCODE      Postcode to center the circular filter on. e.g. AB123CD or "AB12 3CD"
   RADIUS        Radius around the postcode to filter by, in metres. e.g. 60000 would be 60km radius
 
@@ -62,10 +61,15 @@ options:
 
 Run on the TRF json for 30km around Cambridge (CB1):
 ```shell
-trf_export.exe results3.json CB1 30000
+trf_export.exe CB1 30000
 ```
 This will then print some progress messages and deposit the `.gpx` files in the current directory. Enjoy responsibly! 🍻
 
+
+# Cache
+There's a cache created in the current directory called "_grmcache"; it stores tile
+queries from mapbox and can be safely deleted. Might also want to remove it if you
+want to be certain you have the latest data.
 
 # Disclaimer
 

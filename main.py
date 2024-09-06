@@ -3,9 +3,9 @@ from collections import Counter
 
 import enlighten
 
-from extract.models import Config
-from extract.models import TRF_Restrictions
-from extract.workflow import extract, export, as_gpx, filter_by
+from grm_export.models import Config
+from grm_export.models import TRF_Restrictions
+from grm_export.workflow import extract_from_mapbox, export, as_gpx, filter_by, geo_deref
 
 
 def run():
@@ -19,7 +19,13 @@ def run():
     p_status.update("Extracting JSON")
     p_count.update()
 
-    all_features = extract(config.source_file, config.postcode, config.radius, manager)
+    centred_on = geo_deref(config.postcode)
+
+    # old approach for json files 'beta'
+    # all_features = grm_export(config.source_file, centred_on, config.radius, manager)
+
+    # new approach for mapbox 'gamma'
+    all_features = extract_from_mapbox(centred_on, config.radius, manager)
 
     p_status.update("Filter lanes by type")
     p_count.update()
@@ -27,8 +33,9 @@ def run():
     filtered_feature_groups = {
         # split good lanes into normal and dead-ends
         "good": filter_by(all_features, select_classes={TRF_Restrictions.FULL_ACCESS}, deselect_classes=None, is_no_through=False),
-        "deadend": filter_by(all_features, select_classes={TRF_Restrictions.FULL_ACCESS}, deselect_classes=None,
-                  is_no_through=True),
+        # TODO: to handle deadend again, we'd need to query the TRF server directly
+        # "deadend": filter_by(all_features, select_classes={TRF_Restrictions.FULL_ACCESS}, deselect_classes=None,
+        #           is_no_through=True),
         # split bad lanes into "very bad" and "dubious"
         "dubious": filter_by(all_features, select_classes=None, deselect_classes={TRF_Restrictions.FULL_ACCESS, TRF_Restrictions.RESTRICTED}, is_no_through=None),
         "closed": filter_by(all_features, select_classes={TRF_Restrictions.RESTRICTED}, deselect_classes=None, is_no_through=None)

@@ -26,13 +26,14 @@ class TRF_Restrictions(StrEnum):
 
 def default_author() -> str:
     return getpass.getuser().title()
+
 class Config(BaseSettings):
     """
     Extracts gps traces from the TRF dataset. See README.md or https://github.com/davidhyman/green_lane_json for instructions.
     """
     model_config = SettingsConfigDict(cli_parse_args=True)
 
-    source_file: CliPositionalArg[Path] = Field(description='Location of source data file (.json).')
+    # source_file: CliPositionalArg[Path] = Field(description='Location of source data file (.json).')
     postcode: CliPositionalArg[str] = Field(description='Postcode to center the circular filter on. e.g. AB123CD or \"AB12 3CD\"')
     radius: CliPositionalArg[int] = Field(description='Radius around the postcode to filter by, in metres. e.g. 60000 would be 60km radius')
     author: str = Field(default_factory=default_author, description='Set the author name for gpx files. Use quotes e.g. --author=\"Bobby Tables\"')
@@ -42,19 +43,20 @@ class Config(BaseSettings):
 class Feature:
     coords: List[List[float]]
     grm_class: TRF_Restrictions
-    color: str
-    county: str
-    desc: str
+    # color: str
+    # county: str
+    # desc: str
     grmuid: int
-    ha: str
-    har: str
-    historical: str
-    length: int
+    # ha: str
+    # har: str
+    # historical: str
+    # length: int
     membermessage: str
     name: str
-    no_through_route: bool
-    type: str
-    usrn: str
+    # no_through_route: bool
+    # type: str
+    geometry_type: str
+    # usrn: str
 
     original_coord_length: int
 
