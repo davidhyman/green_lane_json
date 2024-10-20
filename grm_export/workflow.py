@@ -18,13 +18,13 @@ import rdp
 
 from grm_export.models import Feature, LatLon, TRF_Restrictions
 
-clean_text_re = re.compile(r'[^\w\n\ \.\,]+')
+clean_text_re = re.compile(r"[^\w\n\ \.\,]+")
 
 
-def pixel2deg(xtile, ytile, zoom, xpixel, ypixel, extent = 4096):
+def pixel2deg(xtile, ytile, zoom, xpixel, ypixel, extent=4096):
     # thanks stackoverflow
     # https://gis.stackexchange.com/questions/401541/decoding-mapbox-vector-tiles
-    n = 2.0 ** zoom
+    n = 2.0**zoom
     xtile = xtile + (xpixel / extent)
     ytile = ytile + ((extent - ypixel) / extent)
     lon_deg = (xtile / n) * 360.0 - 180.0
@@ -38,7 +38,7 @@ def deg2num(lat_deg, lon_deg, zoom):
 
     # https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames#Lon./lat._to_tile_numbers
     lat_rad = math.radians(lat_deg)
-    n = 2.0 ** zoom
+    n = 2.0**zoom
     xtile = int((lon_deg + 180.0) / 360.0 * n)
     ytile = int((1.0 - math.asinh(math.tan(lat_rad)) / math.pi) / 2.0 * n)
     return (xtile, ytile)
@@ -61,7 +61,6 @@ def mapbox_source(centred: LatLon, radius: float) -> dict:
 
 
 async def async_mapbox_source(centred: LatLon, radius: float) -> dict:
-
     # uses the following api:
     # https://docs.mapbox.com/api/maps/vector-tiles/
     API_RATE_LIMIT_MINUTE = 100000  # as per docs
@@ -99,8 +98,8 @@ async def async_mapbox_source(centred: LatLon, radius: float) -> dict:
     E_x, E_y = deg2num(E_lat, E_lon, zoom=starter_zoom)
 
     # plus ones because we're looking at top left corners ... I think ...
-    x_tiles = range(W_x, E_x+1)
-    y_tiles = range(N_y, S_y+1)
+    x_tiles = range(W_x, E_x + 1)
+    y_tiles = range(N_y, S_y + 1)
     print("tile ranges", x_tiles, y_tiles)
 
     # TODO: understand the value of this if we don't care about cancellations ...
@@ -111,7 +110,13 @@ async def async_mapbox_source(centred: LatLon, radius: float) -> dict:
         for tile_zoom in [starter_zoom]:
             for tile_x in x_tiles:
                 for tile_y in y_tiles:
-                    fetch_coro = async_mapbox_fetch_tile(session=session, cache=cache, tile_zoom=tile_zoom, tile_x=tile_x, tile_y=tile_y)
+                    fetch_coro = async_mapbox_fetch_tile(
+                        session=session,
+                        cache=cache,
+                        tile_zoom=tile_zoom,
+                        tile_x=tile_x,
+                        tile_y=tile_y,
+                    )
                     coro = async_limited_fetch(fetch_coro, semaphore)
                     all_tasks.append(asyncio.create_task(coro))
 
@@ -127,7 +132,13 @@ async def async_limited_fetch(coro: Coroutine, semaphore: asyncio.Semaphore):
         return await coro
 
 
-async def async_mapbox_fetch_tile(session: aiohttp.ClientSession, cache: diskcache.Cache, tile_zoom: int, tile_x: int, tile_y: int) -> list:
+async def async_mapbox_fetch_tile(
+    session: aiohttp.ClientSession,
+    cache: diskcache.Cache,
+    tile_zoom: int,
+    tile_x: int,
+    tile_y: int,
+) -> list:
     # TODO: this 'v6' stuff might be related to versioning, if they batch their updates
     #    try running this again in a month or so and see if there's any different data ...
     # token is publicly available to guests and non-members
@@ -140,9 +151,7 @@ async def async_mapbox_fetch_tile(session: aiohttp.ClientSession, cache: diskcac
         async with session.get(url, params=dict(access_token=access_token)) as resp:
             if resp.status == 404:
                 # no data for this tile
-                cache[url] = content = dict(
-                    grrlayer=dict(extent=4096, features=[])
-                )
+                cache[url] = content = dict(grrlayer=dict(extent=4096, features=[]))
             else:
                 pbuf = await resp.read()
                 transformer = lambda x, y: pixel2deg(tile_x, tile_y, tile_zoom, x, y)
@@ -153,7 +162,9 @@ async def async_mapbox_fetch_tile(session: aiohttp.ClientSession, cache: diskcac
         pass
         # print(f"cache for {url}")
     layer = existing["grrlayer"]
-    assert layer["extent"] == 4096, f"extent should be 4096 but was {existing["extent"]}"
+    assert (
+        layer["extent"] == 4096
+    ), f"extent should be 4096 but was {existing["extent"]}"
     return layer["features"]
 
 
@@ -171,7 +182,9 @@ def feature_gen(content: List[Dict]) -> Generator[Feature, None, None]:
         else:
             raise Exception(f"can't handle geometry {feature_data}")
 
-        full_coords = [d[0:2] for d in full_coords]  # strip out height/elevation third coord
+        full_coords = [
+            d[0:2] for d in full_coords
+        ]  # strip out height/elevation third coord
         try:
             # https://gis.stackexchange.com/a/8674
             crush_coords = rdp.rdp(full_coords, epsilon=1e-4)  # maximum deviation
@@ -209,8 +222,13 @@ def geo_deref(uk_post_code: str) -> LatLon:
     return LatLon(response["latitude"], response["longitude"])
 
 
-def as_gpx(features: Iterable[Feature], title: str, multi_track: bool, author: str,
-           pbar_manager: enlighten.Manager) -> gpxpy.gpx.GPX:
+def as_gpx(
+    features: Iterable[Feature],
+    title: str,
+    multi_track: bool,
+    author: str,
+    pbar_manager: enlighten.Manager,
+) -> gpxpy.gpx.GPX:
     gpx = gpxpy.gpx.GPX()
     gpx.name = title
     gpx.description = "This is an export from the TRF green roads map at https://beta.greenroadmap.org.uk/"
@@ -219,10 +237,7 @@ def as_gpx(features: Iterable[Feature], title: str, multi_track: bool, author: s
     gpx.copyright_year = str(datetime.datetime.utcnow().year)
     gpx.creator = "https://github.com/davidhyman/green_lane_json"
 
-    mega_gpx_track = gpxpy.gpx.GPXTrack(
-        name=f"{title}",
-        description=gpx.description
-    )
+    mega_gpx_track = gpxpy.gpx.GPXTrack(name=f"{title}", description=gpx.description)
     # # once upon a time I thought we could force lanes to be ordered by time somehow
     # fake_time = datetime.datetime.utcnow()
     # fake_point_incr = datetime.timedelta(seconds=1)
@@ -233,13 +248,14 @@ def as_gpx(features: Iterable[Feature], title: str, multi_track: bool, author: s
         _desc = clean_text_re.sub("|", _desc).strip()
         # pprint.pprint(_desc)
         gpx_track = gpxpy.gpx.GPXTrack(
-            name=f"{feature.grmuid} {feature.name}",
-            description=_desc
+            name=f"{feature.grmuid} {feature.name}", description=_desc
         )
 
         gpx_segment = gpxpy.gpx.GPXTrackSegment()
         for coord in feature.poly_line:
-            gpx_segment.points.append(gpxpy.gpx.GPXTrackPoint(latitude=coord.lat, longitude=coord.lon))
+            gpx_segment.points.append(
+                gpxpy.gpx.GPXTrackPoint(latitude=coord.lat, longitude=coord.lon)
+            )
             # fake_time += fake_point_incr
         # pprint.pprint(f"{feature.name} {gpx_segment.length_2d():.1f}")
         # fake_time += fake_track_incr
@@ -254,17 +270,17 @@ def as_gpx(features: Iterable[Feature], title: str, multi_track: bool, author: s
     return gpx
 
 
-def filter_by(features: List[Feature], select_classes: AbstractSet[TRF_Restrictions] | None,
-              deselect_classes: AbstractSet[TRF_Restrictions] | None, is_no_through: bool | None) -> List[Feature]:
+def filter_by(
+    features: List[Feature],
+    select_classes: AbstractSet[TRF_Restrictions] | None,
+    deselect_classes: AbstractSet[TRF_Restrictions] | None,
+    is_no_through: bool | None,
+) -> List[Feature]:
     keep = features
     if select_classes is not None:
-        keep = [
-            f for f in keep if f.grm_class in select_classes
-        ]
+        keep = [f for f in keep if f.grm_class in select_classes]
     if deselect_classes is not None:
-        keep = [
-            f for f in keep if f.grm_class not in deselect_classes
-        ]
+        keep = [f for f in keep if f.grm_class not in deselect_classes]
     # if is_no_through is not None:
     #     keep = [
     #         f for f in keep if f.no_through_route == is_no_through
@@ -272,17 +288,23 @@ def filter_by(features: List[Feature], select_classes: AbstractSet[TRF_Restricti
     return keep
 
 
-def extract_from_mapbox(centred_on: LatLon, radius: float, pbar_manager: enlighten.Manager) -> List[Feature]:
+def extract_from_mapbox(
+    centred_on: LatLon, radius: float, pbar_manager: enlighten.Manager
+) -> List[Feature]:
     geojson_data = mapbox_source(centred_on, radius)
     return extract_geojson(geojson_data, centred_on, radius, pbar_manager)
 
 
-def extract_from_filepath(filepath: Path, centred_on: LatLon, radius: float, pbar_manager: enlighten.Manager) -> List[Feature]:
+def extract_from_filepath(
+    filepath: Path, centred_on: LatLon, radius: float, pbar_manager: enlighten.Manager
+) -> List[Feature]:
     geojson_data = json.loads(filepath.read_text())
     return extract_geojson(geojson_data, centred_on, radius, pbar_manager)
 
 
-def extract_geojson(geojson: dict, centred_on: LatLon, radius: float, pbar_manager: enlighten.Manager) -> List[Feature]:
+def extract_geojson(
+    geojson: dict, centred_on: LatLon, radius: float, pbar_manager: enlighten.Manager
+) -> List[Feature]:
     geod = pyproj.Geod(ellps="WGS84")
 
     point_count = 0
@@ -290,7 +312,9 @@ def extract_geojson(geojson: dict, centred_on: LatLon, radius: float, pbar_manag
     total_length = 0
     keepers = []
 
-    progress_bar = pbar_manager.counter(total=len(geojson["features"]), color="blue", desc="Parse & compress routes")
+    progress_bar = pbar_manager.counter(
+        total=len(geojson["features"]), color="blue", desc="Parse & compress routes"
+    )
     for f in feature_gen(geojson):
         progress_bar.update()
         distance = geod.inv(*reversed(f.centre), *reversed(centred_on))[-1]
@@ -311,7 +335,8 @@ def extract_geojson(geojson: dict, centred_on: LatLon, radius: float, pbar_manag
     else:
         cr = 0
     print(
-        f"{len(keepers)} of {len(geojson['features'])} lanes selected, {point_count} gpx points (compressed from {full_point_count} {cr:.1f}% compression)")
+        f"{len(keepers)} of {len(geojson['features'])} lanes selected, {point_count} gpx points (compressed from {full_point_count} {cr:.1f}% compression)"
+    )
     print(f"{total_length / 1000:.1f} km of lanes to ride")
     return keepers
 

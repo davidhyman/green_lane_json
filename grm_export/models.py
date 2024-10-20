@@ -6,8 +6,7 @@ from pathlib import Path
 from typing import List, NamedTuple
 
 from pydantic import Field
-from pydantic_settings import (BaseSettings, CliPositionalArg,
-                               SettingsConfigDict)
+from pydantic_settings import BaseSettings, CliPositionalArg, SettingsConfigDict
 
 
 class LatLon(NamedTuple):
@@ -18,26 +17,36 @@ class LatLon(NamedTuple):
 class TRF_Restrictions(StrEnum):
     # for the 'class' field
     # {'partial-access', 'disputed', 'link_road_with_access', 'temporary_tro', 'full-access', 'restricted'}
-    PARTIAL_ACCESS="partial-access"
-    DISPUTED="disputed"
-    LINK_ROAD="link_road_with_access"
-    TEMPORARY_TRO="temporary_tro"
-    RESTRICTED="restricted"
-    FULL_ACCESS="full-access"
+    PARTIAL_ACCESS = "partial-access"
+    DISPUTED = "disputed"
+    LINK_ROAD = "link_road_with_access"
+    TEMPORARY_TRO = "temporary_tro"
+    RESTRICTED = "restricted"
+    FULL_ACCESS = "full-access"
+
 
 def default_author() -> str:
     return getpass.getuser().title()
+
 
 class Config(BaseSettings):
     """
     Extracts gps traces from the TRF dataset. See README.md or https://github.com/davidhyman/green_lane_json for instructions.
     """
+
     model_config = SettingsConfigDict(cli_parse_args=True)
 
     # source_file: CliPositionalArg[Path] = Field(description='Location of source data file (.json).')
-    postcode: CliPositionalArg[str] = Field(description='Postcode to center the circular filter on. e.g. AB123CD or \"AB12 3CD\"')
-    radius: CliPositionalArg[int] = Field(description='Radius around the postcode to filter by, in metres. e.g. 60000 would be 60km radius')
-    author: str = Field(default_factory=default_author, description='Set the author name for gpx files. Use quotes e.g. --author=\"Bobby Tables\"')
+    postcode: CliPositionalArg[str] = Field(
+        description='Postcode to center the circular filter on. e.g. AB123CD or "AB12 3CD"'
+    )
+    radius: CliPositionalArg[int] = Field(
+        description="Radius around the postcode to filter by, in metres. e.g. 60000 would be 60km radius"
+    )
+    author: str = Field(
+        default_factory=default_author,
+        description='Set the author name for gpx files. Use quotes e.g. --author="Bobby Tables"',
+    )
 
 
 @dataclass
