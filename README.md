@@ -8,9 +8,6 @@ This is intended for use by registered TRF members to load routes into their GPS
 when offline in areas of poor internet connectivity, as commonly encountered in rural areas where these lanes
 are found.
 
-# What do I need?
-1. Obtain the latest `trf_export.exe` from this project: https://github.com/davidhyman/green_lane_json/releases
-
 # What does it do?
 The `trf_export.exe` tool will output multiple files;
 - `multi` - saves each track as an individual route, very poor performance on some devices, but most granularity.
@@ -30,6 +27,12 @@ You may wish to import the groups and set different colours on your device, and/
 You can probably use any GIS tools to view, edit and verify the output such as: Garmin Basecamp, Google MyMaps, Google Earth, etc.
 
 Phone/tablet apps that probably work include; gaia, osmand, gpx viewer pro, outdooractive, dmd2, etc.
+
+# What do I need?
+1. Windows[^1]
+1. Obtain the latest `trf_export.exe` from this project: https://github.com/davidhyman/green_lane_json/releases
+
+[^1]: sorry - if you're on Mac you'll need to know enough Python to `pip install .` the project, but it should work.
 
 # Usage
 

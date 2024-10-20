@@ -1,6 +1,8 @@
 [project]
 name = "grm_export"
-version = "2.0"
+version = "2.1"
+readme = "README.md"
+requires-python = ">=3.12"
 dependencies = [
     "aiohttp",
     "diskcache",
@@ -13,3 +15,6 @@ dependencies = [
     "pyproj",
     "rdp",
 ]
+
+[project.urls]
+Homepage = "https://github.com/davidhyman/green_lane_json"
