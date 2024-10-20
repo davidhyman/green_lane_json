@@ -9,13 +9,7 @@ when offline in areas of poor internet connectivity, as commonly encountered in 
 are found.
 
 # What do I need?
-1. Obtain the latest TRF json file at: https://beta.greenroadmap.org.uk/json/results3.json?1721653721440
-
-> You need to be a logged in member to retrieve this. Use the F12 network tab in your browser to find it (the name or location may change over time).
-> 
-> It is recommended to name the file locally with the date so you can have multiple copies and can refer back to it to see how current it is.
-
-2. Obtain the latest `trf_export.exe` from this project: https://github.com/davidhyman/green_lane_json/releases
+1. Obtain the latest `trf_export.exe` from this project: https://github.com/davidhyman/green_lane_json/releases
 
 # What does it do?
 The `trf_export.exe` tool will output multiple files;
