@@ -3,9 +3,9 @@ from collections import Counter
 
 import enlighten
 
-from grm_export.models import Config
-from grm_export.models import TRF_Restrictions
-from grm_export.workflow import extract_from_mapbox, export, as_gpx, filter_by, geo_deref
+from grm_export.models import Config, TRF_Restrictions
+from grm_export.workflow import (as_gpx, export, extract_from_mapbox,
+                                 filter_by, geo_deref)
 
 
 def run():

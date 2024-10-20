@@ -3,10 +3,11 @@ from dataclasses import dataclass
 from enum import StrEnum
 from functools import cached_property
 from pathlib import Path
-from typing import NamedTuple, List
+from typing import List, NamedTuple
 
 from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict, CliPositionalArg
+from pydantic_settings import (BaseSettings, CliPositionalArg,
+                               SettingsConfigDict)
 
 
 class LatLon(NamedTuple):

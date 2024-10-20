@@ -2,13 +2,14 @@
 name = "grm_export"
 version = "2.0"
 dependencies = [
+    "aiohttp",
     "diskcache",
     "enlighten",
     "gpxpy",
     "mapbox-vector-tile",
     "pgeocode",
-    "pyproj",
     "pydantic",
     "pydantic-settings",
+    "pyproj",
     "rdp",
 ]

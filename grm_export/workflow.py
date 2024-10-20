@@ -1,29 +1,24 @@
+import asyncio
 import datetime
+import itertools
 import json
+import math
 import re
-import traceback
-
 from pathlib import Path
-from typing import List, Dict, Generator, Iterable, AbstractSet
+from typing import AbstractSet, Coroutine, Dict, Generator, Iterable, List
 
+import aiohttp
+import diskcache
 import enlighten
 import gpxpy
+import mapbox_vector_tile
 import pgeocode
 import pyproj
-import requests
 import rdp
-
-import mapbox_vector_tile
-import math
-import diskcache
 
 from grm_export.models import Feature, LatLon, TRF_Restrictions
 
 clean_text_re = re.compile(r'[^\w\n\ \.\,]+')
-
-
-# TODO: cachebuster / versioning
-CACHE = diskcache.Cache(directory="_grmcache")
 
 
 def pixel2deg(xtile, ytile, zoom, xpixel, ypixel, extent = 4096):
@@ -62,9 +57,26 @@ def num2deg(xtile, ytile, zoom):
 
 
 def mapbox_source(centred: LatLon, radius: float) -> dict:
-    # token is publicly available to guests and non-members
-    access_token = "pk.eyJ1IjoidHJmZ3JtMjAyMyIsImEiOiJjbG9oc3NvYnoxazVpMmpwOXVrZWprNHQ5In0.k4qADdWyIfXxPsFr2JEI2w"
-    dataset_id = "trfgrm2023.grrtilesv6"
+    return asyncio.run(async_mapbox_source(centred, radius))
+
+
+async def async_mapbox_source(centred: LatLon, radius: float) -> dict:
+
+    # uses the following api:
+    # https://docs.mapbox.com/api/maps/vector-tiles/
+    API_RATE_LIMIT_MINUTE = 100000  # as per docs
+    API_RATE_LIMIT = API_RATE_LIMIT_MINUTE / 60
+    soft_rate_limit = API_RATE_LIMIT * 0.1
+    concurrency_limit = 5
+    semaphore = asyncio.BoundedSemaphore(value=concurrency_limit)
+    # print(f"rate limited to {soft_rate_limit}/s")
+    print(f"concurrency limited to {concurrency_limit}")
+
+    # weekly cache
+    today = datetime.datetime.today()
+    cache_dir = f"_grmcache/year_{today.year}_week_{today.isocalendar()[1]}"
+    print(f"cache directory: {cache_dir}")
+    cache = diskcache.Cache(directory=cache_dir)
 
     # we want to use a fixed zoom
     # because mapbox is lossy and uses 4096 ints to encode
@@ -72,7 +84,6 @@ def mapbox_source(centred: LatLon, radius: float) -> dict:
     # so we need to be sufficiently zoomed in that the coords
     # are accurate enough for our purposes
     # without incurring too many api requests (2^n)
-
     starter_zoom = 11
 
     # figure out which tiles we need
@@ -92,40 +103,58 @@ def mapbox_source(centred: LatLon, radius: float) -> dict:
     y_tiles = range(N_y, S_y+1)
     print("tile ranges", x_tiles, y_tiles)
 
-    all_features = []
+    # TODO: understand the value of this if we don't care about cancellations ...
+    # async with asyncio.TaskGroup() as all_tiles:  # some new witchcraft that avoids `.gather()`
 
-    for tile_zoom in [starter_zoom]:
-        for tile_x in x_tiles:
-            for tile_y in y_tiles:
-                # TODO: this 'v6' stuff might be related to versioning, if they batch their updates
-                #    try running this again in a month or so and see if there's any different data ...
-                url = f"https://api.mapbox.com/v4/{dataset_id}/{tile_zoom}/{tile_x}/{tile_y}.vector.pbf"
-                existing = CACHE.get(url)
-                if existing is None:
-                    print(f"query for {url}")
-                    resp = requests.get(url, params=dict(access_token=access_token))
+    all_tasks = []
+    async with aiohttp.ClientSession() as session:
+        for tile_zoom in [starter_zoom]:
+            for tile_x in x_tiles:
+                for tile_y in y_tiles:
+                    fetch_coro = async_mapbox_fetch_tile(session=session, cache=cache, tile_zoom=tile_zoom, tile_x=tile_x, tile_y=tile_y)
+                    coro = async_limited_fetch(fetch_coro, semaphore)
+                    all_tasks.append(asyncio.create_task(coro))
 
-                    if resp.status_code == 404:
-                        # no data for this tile
-                        CACHE[url] = content = dict(
-                            grrlayer=dict(extent=4096, features=[])
-                        )
-                    else:
-                        pbuf = resp.content
-                        transformer = lambda x, y: pixel2deg(tile_x, tile_y, tile_zoom, x, y)
-                        try:
-                            content = mapbox_vector_tile.decode(pbuf, transformer=transformer)
-                        except Exception as e:
-                            traceback.print_exc()
-                            continue
-                        else:
-                            CACHE[url] = content
-                    existing = content
+        print(f"there's {len(all_tasks)} tiles to fetch")
+        results = await asyncio.gather(*all_tasks)
+    features = list(itertools.chain(*results))
+    print(f"obtained {len(features)} features from {len(results)} tiles")
+    return dict(features=features)
 
-                layer = existing["grrlayer"]
-                assert layer["extent"] == 4096, f"extent should be 4096 but was {existing["extent"]}"
-                all_features.extend(layer["features"])
-    return dict(features=all_features)
+
+async def async_limited_fetch(coro: Coroutine, semaphore: asyncio.Semaphore):
+    async with semaphore:
+        return await coro
+
+
+async def async_mapbox_fetch_tile(session: aiohttp.ClientSession, cache: diskcache.Cache, tile_zoom: int, tile_x: int, tile_y: int) -> list:
+    # TODO: this 'v6' stuff might be related to versioning, if they batch their updates
+    #    try running this again in a month or so and see if there's any different data ...
+    # token is publicly available to guests and non-members
+    access_token = "pk.eyJ1IjoidHJmZ3JtMjAyMyIsImEiOiJjbG9oc3NvYnoxazVpMmpwOXVrZWprNHQ5In0.k4qADdWyIfXxPsFr2JEI2w"
+    dataset_id = "trfgrm2023.grrtilesv6"
+    url = f"https://api.mapbox.com/v4/{dataset_id}/{tile_zoom}/{tile_x}/{tile_y}.vector.pbf"
+    existing = cache.get(url)
+    if existing is None:
+        # print(f"query for {url}")
+        async with session.get(url, params=dict(access_token=access_token)) as resp:
+            if resp.status == 404:
+                # no data for this tile
+                cache[url] = content = dict(
+                    grrlayer=dict(extent=4096, features=[])
+                )
+            else:
+                pbuf = await resp.read()
+                transformer = lambda x, y: pixel2deg(tile_x, tile_y, tile_zoom, x, y)
+                content = mapbox_vector_tile.decode(pbuf, transformer=transformer)
+                cache[url] = content
+        existing = content
+    else:
+        pass
+        # print(f"cache for {url}")
+    layer = existing["grrlayer"]
+    assert layer["extent"] == 4096, f"extent should be 4096 but was {existing["extent"]}"
+    return layer["features"]
 
 
 def feature_gen(content: List[Dict]) -> Generator[Feature, None, None]:
