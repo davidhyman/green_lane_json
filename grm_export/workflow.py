@@ -73,7 +73,7 @@ async def async_mapbox_source(centred: LatLon, radius: float) -> dict:
 
     # weekly cache
     today = datetime.datetime.today()
-    cache_dir = f"_grmcache/year_{today.year}_week_{today.isocalendar()[1]}"
+    cache_dir = f"_grmcache/year_{today.year}_week_{today.isocalendar().week}"
     print(f"cache directory: {cache_dir}")
     cache = diskcache.Cache(directory=cache_dir)
 
