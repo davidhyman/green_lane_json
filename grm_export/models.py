@@ -1,17 +1,17 @@
-import getpass
 from dataclasses import dataclass
 from enum import StrEnum
 from functools import cached_property
-from pathlib import Path
 from typing import List, NamedTuple
 
-from pydantic import Field
+from pydantic import Field, BaseModel, FiniteFloat
 from pydantic_settings import BaseSettings, CliPositionalArg, SettingsConfigDict
 
+from grm_export.utils import default_author, handle_key
 
-class LatLon(NamedTuple):
-    lat: float
-    lon: float
+
+class LatLon(BaseModel):
+    lat: FiniteFloat
+    lon: FiniteFloat
 
 
 class TRF_Restrictions(StrEnum):
@@ -25,13 +25,15 @@ class TRF_Restrictions(StrEnum):
     FULL_ACCESS = "full-access"
 
 
-def default_author() -> str:
-    return getpass.getuser().title()
-
-
 class Config(BaseSettings):
     """
-    Extracts gps traces from the TRF dataset. See README.md or https://github.com/davidhyman/green_lane_json for instructions.
+    Extracts gps traces from the TRF dataset.
+
+    See README.md or https://github.com/davidhyman/green_lane_json for instructions.
+
+    e.g. for 30km around Cambridge:
+
+    trf_export.exe CB1 30000
     """
 
     model_config = SettingsConfigDict(cli_parse_args=True)
@@ -44,8 +46,12 @@ class Config(BaseSettings):
         description="Radius around the postcode to filter by, in metres. e.g. 60000 would be 60km radius"
     )
     author: str = Field(
-        default_factory=default_author,
+        default=default_author(),
         description='Set the author name for gpx files. Use quotes e.g. --author="Bobby Tables"',
+    )
+    mapbox_key: str = Field(
+        default_factory=handle_key,
+        description='Override the mapbox key (visit https://gamma.greenroadmap.org.uk/main.js and look for `access_key`).',
     )
 
 
@@ -72,7 +78,7 @@ class Feature:
 
     @cached_property
     def poly_line(self) -> List[LatLon]:
-        return [LatLon(c[1], c[0]) for c in self.coords]
+        return [LatLon(lat=c[1], lon=c[0]) for c in self.coords]
 
     @property
     def centre(self) -> LatLon:

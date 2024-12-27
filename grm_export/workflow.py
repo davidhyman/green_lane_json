@@ -15,8 +15,10 @@ import mapbox_vector_tile
 import pgeocode
 import pyproj
 import rdp
+from asynciolimiter import Limiter
 
 from grm_export.models import Feature, LatLon, TRF_Restrictions
+from grm_export.utils import get_cache
 
 clean_text_re = re.compile(r"[^\w\n\ \.\,]+")
 
@@ -56,26 +58,25 @@ def num2deg(xtile, ytile, zoom):
     return lat_deg, lon_deg
 
 
-def mapbox_source(centred: LatLon, radius: float) -> dict:
-    return asyncio.run(async_mapbox_source(centred, radius))
+def mapbox_source(centred: LatLon, radius: float, key: str) -> dict:
+    return asyncio.run(async_mapbox_source(centred, radius, key))
 
 
-async def async_mapbox_source(centred: LatLon, radius: float) -> dict:
+async def async_mapbox_source(centred: LatLon, radius: float, key: str) -> dict:
     # uses the following api:
     # https://docs.mapbox.com/api/maps/vector-tiles/
     API_RATE_LIMIT_MINUTE = 100000  # as per docs
-    API_RATE_LIMIT = API_RATE_LIMIT_MINUTE / 60
-    soft_rate_limit = API_RATE_LIMIT * 0.1
-    concurrency_limit = 5
-    semaphore = asyncio.BoundedSemaphore(value=concurrency_limit)
+    API_RATE_LIMIT = API_RATE_LIMIT_MINUTE / 60  # in seconds
+    soft_rate_limit = API_RATE_LIMIT * 0.1  # to be nice
+    # concurrency_limit = 5
+    # semaphore = asyncio.BoundedSemaphore(value=concurrency_limit)
     # print(f"rate limited to {soft_rate_limit}/s")
-    print(f"concurrency limited to {concurrency_limit}")
+    rate_limiter = Limiter(soft_rate_limit)
+    print(f"rate limited to {rate_limiter.rate}")
 
     # weekly cache
-    today = datetime.datetime.today()
-    cache_dir = f"_grmcache/year_{today.year}_week_{today.isocalendar().week}"
-    print(f"cache directory: {cache_dir}")
-    cache = diskcache.Cache(directory=cache_dir)
+    cache = get_cache()
+    print(f"cache directory: {cache.directory}")
 
     # we want to use a fixed zoom
     # because mapbox is lossy and uses 4096 ints to encode
@@ -102,9 +103,6 @@ async def async_mapbox_source(centred: LatLon, radius: float) -> dict:
     y_tiles = range(N_y, S_y + 1)
     print("tile ranges", x_tiles, y_tiles)
 
-    # TODO: understand the value of this if we don't care about cancellations ...
-    # async with asyncio.TaskGroup() as all_tiles:  # some new witchcraft that avoids `.gather()`
-
     all_tasks = []
     async with aiohttp.ClientSession() as session:
         for tile_zoom in [starter_zoom]:
@@ -113,11 +111,14 @@ async def async_mapbox_source(centred: LatLon, radius: float) -> dict:
                     fetch_coro = async_mapbox_fetch_tile(
                         session=session,
                         cache=cache,
+                        key=key,
                         tile_zoom=tile_zoom,
                         tile_x=tile_x,
                         tile_y=tile_y,
                     )
-                    coro = async_limited_fetch(fetch_coro, semaphore)
+                    # TODO: cache should be outside of limiter
+                    #   and could probably use memoize(..., ignore=session)?
+                    coro = async_limited_fetch(fetch_coro, rate_limiter)
                     all_tasks.append(asyncio.create_task(coro))
 
         print(f"there's {len(all_tasks)} tiles to fetch")
@@ -127,28 +128,24 @@ async def async_mapbox_source(centred: LatLon, radius: float) -> dict:
     return dict(features=features)
 
 
-async def async_limited_fetch(coro: Coroutine, semaphore: asyncio.Semaphore):
-    async with semaphore:
-        return await coro
+async def async_limited_fetch(coro: Coroutine, rate_limiter: Limiter):
+    await rate_limiter.wait()
+    return await coro
 
 
 async def async_mapbox_fetch_tile(
     session: aiohttp.ClientSession,
     cache: diskcache.Cache,
+    key: str,
     tile_zoom: int,
     tile_x: int,
     tile_y: int,
 ) -> list:
-    # TODO: this 'v6' stuff might be related to versioning, if they batch their updates
-    #    try running this again in a month or so and see if there's any different data ...
-    # token is publicly available to guests and non-members
-    access_token = "pk.eyJ1IjoidHJmZ3JtMjAyMyIsImEiOiJjbG9oc3NvYnoxazVpMmpwOXVrZWprNHQ5In0.k4qADdWyIfXxPsFr2JEI2w"
     dataset_id = "trfgrm2023.grrtilesv6"
     url = f"https://api.mapbox.com/v4/{dataset_id}/{tile_zoom}/{tile_x}/{tile_y}.vector.pbf"
     existing = cache.get(url)
     if existing is None:
-        # print(f"query for {url}")
-        async with session.get(url, params=dict(access_token=access_token)) as resp:
+        async with session.get(url, params=dict(access_token=key)) as resp:
             if resp.status == 404:
                 # no data for this tile
                 cache[url] = content = dict(grrlayer=dict(extent=4096, features=[]))
@@ -160,7 +157,6 @@ async def async_mapbox_fetch_tile(
         existing = content
     else:
         pass
-        # print(f"cache for {url}")
     layer = existing["grrlayer"]
     assert (
         layer["extent"] == 4096
@@ -218,8 +214,9 @@ def feature_gen(content: List[Dict]) -> Generator[Feature, None, None]:
 def geo_deref(uk_post_code: str) -> LatLon:
     nomi = pgeocode.Nominatim("GB")
     response = nomi.query_postal_code(uk_post_code)
+
     print(f"Generation centred on {response["place_name"]}, {response["county_name"]}")
-    return LatLon(response["latitude"], response["longitude"])
+    return LatLon(lat=response["latitude"], lon=response["longitude"])
 
 
 def as_gpx(
@@ -289,9 +286,9 @@ def filter_by(
 
 
 def extract_from_mapbox(
-    centred_on: LatLon, radius: float, pbar_manager: enlighten.Manager
+    centred_on: LatLon, radius: float, key: str, pbar_manager: enlighten.Manager
 ) -> List[Feature]:
-    geojson_data = mapbox_source(centred_on, radius)
+    geojson_data = mapbox_source(centred_on, radius, key)
     return extract_geojson(geojson_data, centred_on, radius, pbar_manager)
 
 
@@ -317,7 +314,7 @@ def extract_geojson(
     )
     for f in feature_gen(geojson):
         progress_bar.update()
-        distance = geod.inv(*reversed(f.centre), *reversed(centred_on))[-1]
+        distance = geod.inv(f.centre.lon, f.centre.lat, centred_on.lon, centred_on.lat)[-1]
         f.distance = distance
         if distance > radius:
             continue

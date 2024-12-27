@@ -5,6 +5,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "aiohttp",
+    "asynciolimiter",
     "diskcache",
     "enlighten",
     "gpxpy",

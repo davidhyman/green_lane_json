@@ -20,7 +20,7 @@ It also splits the routes into groups according to the TRO status, presently:
 - `closed` - closed (indefinitely?) see GRM for details
 - `dubious` - any other category (e.g. seasonal TRO)
 - `deadend` - safe to ride, but you'll have to double back
-- `not_closed` - includes all of the above that's not `closed`
+- `not_closed` - includes all of the above that's not `closed` (if you want one file, this is the most useful)
 
 You may wish to import the groups and set different colours on your device, and/or pay special attention to their current legality at the time of your access.
 
@@ -36,7 +36,7 @@ Phone/tablet apps that probably work include; gaia, osmand, gpx viewer pro, outd
 
 # Usage
 
-Run this in a terminal ([help?!](https://towardsdatascience.com/a-quick-guide-to-using-command-line-terminal-96815b97b955)):
+Run this in a terminal ([help! how do I do that?!](https://towardsdatascience.com/a-quick-guide-to-using-command-line-terminal-96815b97b955)):
 ```shell
 trf_export.exe -h
 ```
@@ -53,7 +53,7 @@ positional arguments:
 
 options:
   -h, --help    show this help message and exit
-  --author str  Set the author name for gpx files. Use quotes e.g. --author="Bobby Tables" (required)
+  --author str  Set the author name for gpx files. Use quotes e.g. --author="Bobby Tables"
 ```
 
 Run on the TRF json for 30km around Cambridge (CB1):

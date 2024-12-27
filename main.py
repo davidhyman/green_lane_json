@@ -30,7 +30,7 @@ def run():
     # all_features = grm_export(config.source_file, centred_on, config.radius, manager)
 
     # new approach for mapbox 'gamma'
-    all_features = extract_from_mapbox(centred_on, config.radius, manager)
+    all_features = extract_from_mapbox(centred_on, config.radius, config.mapbox_key, manager)
 
     p_status.update("Filter lanes by type")
     p_count.update()
