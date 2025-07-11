@@ -36,7 +36,7 @@ Phone/tablet apps that probably work include; gaia, osmand, gpx viewer pro, outd
 
 # Usage
 
-Run this in a terminal ([help! how do I do that?!](https://towardsdatascience.com/a-quick-guide-to-using-command-line-terminal-96815b97b955)):
+Run this tool in a terminal ([help! how do I do that?!](https://towardsdatascience.com/a-quick-guide-to-using-command-line-terminal-96815b97b955)):
 ```shell
 trf_export.exe -h
 ```
@@ -54,32 +54,44 @@ positional arguments:
 options:
   -h, --help    show this help message and exit
   --author str  Set the author name for gpx files. Use quotes e.g. --author="Bobby Tables"
+  --mapbox_key {str,Path} Supply the mapbox key, or path to search. See README.
 ```
 
 Run on the TRF json for 30km around Cambridge (CB1):
 ```shell
-trf_export.exe CB1 30000
+trf_export.exe CB1 30000 --mapbox_key=...
 ```
 This will then print some progress messages and deposit the `.gpx` files in the current directory. Enjoy responsibly! 🍻
 
+# Mapbox key
+TRF GRM has moved the mapping provider to mapbox. Therefore you, as a registered TRF member, will have to 
+supply it as follows:
+- log in to the grm and confirm you can see the trails on the map
+- Option 1: use your browser's "save page as" to download as "web page (complete)"
+  to your "Downloads" folder. 
+  - If you save it somewhere else, you'll have to provide that
+    directory to the `--mapbox_key` argument.
+- Option 2: using dev tools network tab, extract the `pk.` key from the mapbox requests, 
+  and provide it directly to the `--mapbox_key` argument
 
 # Cache
-There's a cache created in the current directory called "_grmcache"; it stores tile
-queries from mapbox and can be safely deleted. Might also want to remove it if you
-want to be certain you have the latest data.
+There's a weekly cache created in the current directory called "_grmcache"; it stores tile
+queries from mapbox and can be safely deleted.
 
 # Disclaimer
-
 There is no TRF content included in this project, it simply a processing tool.
+
+This tool falls under the TRF "acceptable use" criteria: "You may, for your own personal, non-commercial use only, do the following: a. retrieve, display and view the Content on a computer screen".
+For more information see https://beta.greenroadmap.org.uk/terms-of-use.
 
 Majority of meaningful content on TRF website is uploaded by users and volunteers from public domain council sources and therefore is not "owned" by the TRF.
 However, to avoid proliferation of out-of-date copies of gpx data (and hence avoid misuse of closed or TRO'd routes etc)
 it is strongly recommended that the output of this tool is not shared outside the TRF.
 
-This tool falls under the TRF "acceptable use" criteria: "You may, for your own personal, non-commercial use only, do the following: a. retrieve, display and view the Content on a computer screen".
-For more information see https://beta.greenroadmap.org.uk/terms-of-use.
+Run the tool regularly, or at least check your route with the latest TRO status on the live GRM map before riding.
 
-You should probably check your route with the latest TRO status on the live GRM map before riding.
+No map other than the authoritative source can possibly be 'up to date', and you would have
+no means to verify this when out of phone signal anyway.
 
 Tool is provided as-is and copyrighted to the author. No warranty given or liability accepted.
 

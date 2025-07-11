@@ -1,8 +1,8 @@
-import base64
 import datetime
 import getpass
 import re
-from urllib import request
+import sys
+from pathlib import Path
 
 import diskcache
 
@@ -19,20 +19,29 @@ def default_author() -> str:
     return getpass.getuser().title()
 
 
-def handle_key() -> str:
-    try:
-        cache = get_cache()
-        memod = cache.memoize()(mapbox_key)
-        return memod()
-    except Exception:
-        raise RuntimeError("Could not find key in public, please provide it via CLI")
+def looks_like_key(candidate: str) -> bool:
+    return candidate.startswith("pk") and len(candidate.split("."))==3
 
 
-def mapbox_key() -> str:
-    _from = "aHR0cHM6Ly9nYW1tYS5ncmVlbnJvYWRtYXAub3JnLnVrL2Fzc2V0cy9pbmRleC5vbC5qcw=="
-    uri = base64.standard_b64decode(_from).decode("utf8")
-    resp = request.urlopen(uri).read().decode("utf8")
+def mapbox_key_from_dir(path: Path) -> str:
+    if not path.exists():
+        raise ValueError(f"this file or directory doesn't exist: {path}")
     finder = re.compile(r"api.mapbox.*access_token=([\w\.]+)")
-    key = finder.findall(resp).pop()
-    print(f"found public key: ***{key[-6:]}")
+    key = None
+    for filepath in path.rglob("**/combined.js.php"):
+        for encoding in ("latin", "utf8", "cp1140", "cp1252"):  # who knows?
+            try:
+                print(f"trying ({encoding}): {filepath}")
+                content = filepath.read_text(encoding=encoding)
+                maybe_match = finder.search(content)
+                if maybe_match:
+                    key = maybe_match.groups()[0]
+                    break
+            except (ValueError, PermissionError) as e:
+                print(f"{e.__class__} couldn't read {filepath}: {e}")
+        if key:
+            break
+    else:
+        raise KeyError(f"couldn't find the key in {path}")
+    print(f"found key: {key[:8]}***, looks valid: {looks_like_key(key)}")
     return key

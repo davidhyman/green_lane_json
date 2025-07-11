@@ -1,12 +1,13 @@
 from dataclasses import dataclass
 from enum import StrEnum
 from functools import cached_property
-from typing import List, NamedTuple
+from pathlib import Path
+from typing import List
 
-from pydantic import Field, BaseModel, FiniteFloat
+from pydantic import Field, BaseModel, FiniteFloat, field_validator
 from pydantic_settings import BaseSettings, CliPositionalArg, SettingsConfigDict
 
-from grm_export.utils import default_author, handle_key
+from grm_export.utils import default_author, looks_like_key, mapbox_key_from_dir
 
 
 class LatLon(BaseModel):
@@ -49,11 +50,22 @@ class Config(BaseSettings):
         default=default_author(),
         description='Set the author name for gpx files. Use quotes e.g. --author="Bobby Tables"',
     )
-    mapbox_key: str = Field(
-        default_factory=handle_key,
-        description='Override the mapbox key (visit https://gamma.greenroadmap.org.uk/main.js and look for `access_key`).',
+    mapbox_key: str | Path = Field(
+        default=Path.home() / "Documents" / "Downloads",
+        description='Supply the mapbox key, or path to search. See README.',
     )
 
+    @field_validator("mapbox_key", mode="after")
+    @classmethod
+    def _key_from_file(cls, value: str | Path) -> str:
+        if isinstance(value, str):
+            # is it actually a key
+            if looks_like_key(value):
+                return value
+            else:
+                value = Path(value)
+        # now we definitely have a Path
+        return mapbox_key_from_dir(value)
 
 @dataclass
 class Feature:

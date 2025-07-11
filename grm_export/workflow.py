@@ -215,7 +215,7 @@ def geo_deref(uk_post_code: str) -> LatLon:
     nomi = pgeocode.Nominatim("GB")
     response = nomi.query_postal_code(uk_post_code)
 
-    print(f"Generation centred on {response["place_name"]}, {response["county_name"]}")
+    print(f"Postcode lookup says generation centred on {response["place_name"]}, {response["county_name"]}")
     return LatLon(lat=response["latitude"], lon=response["longitude"])
 
 

@@ -66,15 +66,15 @@ def run():
 
     # warn if these filters resulted in duplicates (this could be due to logical fallacy or weird data)
     # TODO: something more useful for debug if/when needed
-    c = Counter()
-    for feature_set in filtered_feature_groups.values():
-        for f in feature_set:
-            c[f.grmuid] += 1
-    for grm_uid, count in c.most_common(3):
-        if count > 1:
-            print(
-                f"WARNING: lane appears more than once in output data: {grm_uid}: {count}"
-            )
+    # c = Counter()
+    # for feature_set in filtered_feature_groups.values():
+    #     for f in feature_set:
+    #         c[f.grmuid] += 1
+    # for grm_uid, count in c.most_common(3):
+    #     if count > 1:
+    #         print(
+    #             f"WARNING: lane appears more than once in output data: {grm_uid}: {count} times"
+    #         )
 
     filtered_feature_groups["not_closed"] = filter_by(
         all_features,
