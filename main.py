@@ -26,11 +26,7 @@ def run():
 
     centred_on = geo_deref(config.postcode)
 
-    # old approach for json files 'beta'
-    # all_features = grm_export(config.source_file, centred_on, config.radius, manager)
-
-    # new approach for mapbox 'gamma'
-    all_features = extract_from_mapbox(centred_on, config.radius, config.mapbox_key, manager)
+    all_features = extract_from_mapbox(centred_on, config.radius, config.region, config.mapbox_key, manager)
 
     p_status.update("Filter lanes by type")
     p_count.update()
@@ -64,18 +60,6 @@ def run():
         ),
     }
 
-    # warn if these filters resulted in duplicates (this could be due to logical fallacy or weird data)
-    # TODO: something more useful for debug if/when needed
-    # c = Counter()
-    # for feature_set in filtered_feature_groups.values():
-    #     for f in feature_set:
-    #         c[f.grmuid] += 1
-    # for grm_uid, count in c.most_common(3):
-    #     if count > 1:
-    #         print(
-    #             f"WARNING: lane appears more than once in output data: {grm_uid}: {count} times"
-    #         )
-
     filtered_feature_groups["not_closed"] = filter_by(
         all_features,
         select_classes=None,
@@ -84,6 +68,7 @@ def run():
     )
 
     short_postcode = config.postcode.replace(" ", "").upper()
+    short_name = f"{short_postcode} ({config.region.stem})" if config.region else f"{short_postcode} {config.radius / 1000:.0f}km"
     short_date = datetime.date.today().isoformat()
 
     p_status.update("Generating GPX datasets")
@@ -98,7 +83,7 @@ def run():
     for is_multi_track in (True, False):
         for filter_name, features in filtered_feature_groups.items():
             multi_name = "multi" if is_multi_track else "mono"
-            title = f"TRF {short_postcode} {config.radius / 1000:.0f}km {short_date} - {filter_name} {multi_name}"
+            title = f"TRF {short_name} {short_date} - {filter_name} {multi_name}"
             export(as_gpx(features, title, is_multi_track, config.author, manager))
             progress_bar.update()
 

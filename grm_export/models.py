@@ -39,13 +39,13 @@ class Config(BaseSettings):
 
     model_config = SettingsConfigDict(cli_parse_args=True)
 
-    # source_file: CliPositionalArg[Path] = Field(description='Location of source data file (.json).')
     postcode: CliPositionalArg[str] = Field(
         description='Postcode to center the circular filter on. e.g. AB123CD or "AB12 3CD"'
     )
     radius: CliPositionalArg[int] = Field(
         description="Radius around the postcode to filter by, in metres. e.g. 60000 would be 60km radius"
     )
+    region: Path | None = Field(default=None, description='Location of GeoJSON or KML region polygon file, for a custom region (.json or .kml).')
     author: str = Field(
         default=default_author(),
         description='Set the author name for gpx files. Use quotes e.g. --author="Bobby Tables"',

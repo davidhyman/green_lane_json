@@ -5,7 +5,7 @@ import json
 import math
 import re
 from pathlib import Path
-from typing import AbstractSet, Coroutine, Dict, Generator, Iterable, List
+from typing import AbstractSet, Coroutine, Dict, Generator, Iterable, List, TypeAlias
 
 import aiohttp
 import diskcache
@@ -15,13 +15,19 @@ import mapbox_vector_tile
 import pgeocode
 import pyproj
 import rdp
+import shapely
 from asynciolimiter import Limiter
+from shapely import Polygon
 
+from grm_export import poly
 from grm_export.models import Feature, LatLon, TRF_Restrictions
+from grm_export.poly import path_to_poly
 from grm_export.utils import get_cache
 
 clean_text_re = re.compile(r"[^\w\n\ \.\,]+")
 
+TileIds: TypeAlias = list[tuple[int, int, int]]  # x,y,zoom
+Within: TypeAlias = Polygon|tuple[LatLon, float]  # hellish optional, should do better ...
 
 def pixel2deg(xtile, ytile, zoom, xpixel, ypixel, extent=4096):
     # thanks stackoverflow
@@ -35,15 +41,21 @@ def pixel2deg(xtile, ytile, zoom, xpixel, ypixel, extent=4096):
     return (lon_deg, lat_deg)
 
 
-def deg2num(lat_deg, lon_deg, zoom):
-    # https://stackoverflow.com/questions/29218920/how-to-find-out-map-tile-coordinates-from-latitude-and-longitude
+def x_deg2tile_id(lon_deg: float, zoom: int) -> int:
+    n = 2.0 ** zoom
+    return int((lon_deg + 180.0) / 360.0 * n)
 
-    # https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames#Lon./lat._to_tile_numbers
+
+def y_deg2tile_id(lat_deg: float, zoom: int) -> int:
+    n = 2.0 ** zoom
     lat_rad = math.radians(lat_deg)
-    n = 2.0**zoom
-    xtile = int((lon_deg + 180.0) / 360.0 * n)
-    ytile = int((1.0 - math.asinh(math.tan(lat_rad)) / math.pi) / 2.0 * n)
-    return (xtile, ytile)
+    return int((1.0 - math.asinh(math.tan(lat_rad)) / math.pi) / 2.0 * n)
+
+
+def deg2num(lat_deg: float, lon_deg: float, zoom: int) -> tuple[int, int]:
+    # https://stackoverflow.com/questions/29218920/how-to-find-out-map-tile-coordinates-from-latitude-and-longitude
+    # https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames#Lon./lat._to_tile_numbers
+    return x_deg2tile_id(lon_deg, zoom), y_deg2tile_id(lat_deg, zoom)
 
 
 def num2deg(xtile, ytile, zoom):
@@ -58,11 +70,54 @@ def num2deg(xtile, ytile, zoom):
     return lat_deg, lon_deg
 
 
-def mapbox_source(centred: LatLon, radius: float, key: str) -> dict:
-    return asyncio.run(async_mapbox_source(centred, radius, key))
+def mapbox_source(tiles: TileIds, key: str) -> dict:
+    return asyncio.run(async_mapbox_source(tiles, key))
 
 
-async def async_mapbox_source(centred: LatLon, radius: float, key: str) -> dict:
+def mapbox_tiles_for_extent(centred: Within) -> TileIds:
+    # we want to use a fixed zoom
+    # because mapbox is lossy and uses 4096 ints to encode
+    # all lat lon coords, for a given zoom level
+    # so we need to be sufficiently zoomed in that the coords
+    # are accurate enough for our purposes
+    # without incurring too many api requests (2^n)
+    zoom = 11
+
+    if isinstance(centred, Polygon):
+        # (minx, miny, maxx, maxy)
+        W_lon, S_lat, E_lon, N_lat = centred.bounds
+    else:
+        # treat as a circle
+        centred, radius = centred
+
+        # figure out which tiles we need
+        geod = pyproj.Geod(ellps="WGS84")
+        N_lon, N_lat, _ = geod.fwd(centred.lon, centred.lat, 0, radius)
+        S_lon, S_lat, _ = geod.fwd(centred.lon, centred.lat, 180, radius)
+        W_lon, W_lat, _ = geod.fwd(centred.lon, centred.lat, 270, radius)
+        E_lon, E_lat, _ = geod.fwd(centred.lon, centred.lat, 90, radius)
+
+    # convert latlon to mapbox tile ids (in the shape of a diamond)
+    W_x = x_deg2tile_id(W_lon, zoom)
+    N_y = y_deg2tile_id(N_lat, zoom)
+    E_x = x_deg2tile_id(E_lon, zoom)
+    S_y = y_deg2tile_id(S_lat, zoom)
+
+    # plus ones because we're looking at top left corners ... I think ...
+    x_tiles = range(W_x, E_x + 1)
+    y_tiles = range(N_y, S_y + 1)
+    print("tile ranges", x_tiles, y_tiles)
+
+    # greedily enumerate all the tiles to ensure full coverage
+    tiles = []
+    for tile_zoom in [zoom]:
+        for x_tile in x_tiles:
+            for y_tile in y_tiles:
+                tiles.append((x_tile, y_tile, tile_zoom))
+    return tiles
+
+
+async def async_mapbox_source(tiles: TileIds, key: str) -> dict:
     # uses the following api:
     # https://docs.mapbox.com/api/maps/vector-tiles/
     API_RATE_LIMIT_MINUTE = 100000  # as per docs
@@ -72,57 +127,30 @@ async def async_mapbox_source(centred: LatLon, radius: float, key: str) -> dict:
     # semaphore = asyncio.BoundedSemaphore(value=concurrency_limit)
     # print(f"rate limited to {soft_rate_limit}/s")
     rate_limiter = Limiter(soft_rate_limit)
-    print(f"rate limited to {rate_limiter.rate}")
+    print(f"rate limited to {rate_limiter.rate:.1f} hz")
 
     # weekly cache
     cache = get_cache()
     print(f"cache directory: {cache.directory}")
 
-    # we want to use a fixed zoom
-    # because mapbox is lossy and uses 4096 ints to encode
-    # all lat lon coords, for a given zoom level
-    # so we need to be sufficiently zoomed in that the coords
-    # are accurate enough for our purposes
-    # without incurring too many api requests (2^n)
-    starter_zoom = 11
-
-    # figure out which tiles we need
-    geod = pyproj.Geod(ellps="WGS84")
-    N_lon, N_lat, _ = geod.fwd(centred.lon, centred.lat, 0, radius)
-    S_lon, S_lat, _ = geod.fwd(centred.lon, centred.lat, 180, radius)
-    W_lon, W_lat, _ = geod.fwd(centred.lon, centred.lat, 270, radius)
-    E_lon, E_lat, _ = geod.fwd(centred.lon, centred.lat, 90, radius)
-
-    N_x, N_y = deg2num(N_lat, N_lon, zoom=starter_zoom)
-    S_x, S_y = deg2num(S_lat, S_lon, zoom=starter_zoom)
-    W_x, W_y = deg2num(W_lat, W_lon, zoom=starter_zoom)
-    E_x, E_y = deg2num(E_lat, E_lon, zoom=starter_zoom)
-
-    # plus ones because we're looking at top left corners ... I think ...
-    x_tiles = range(W_x, E_x + 1)
-    y_tiles = range(N_y, S_y + 1)
-    print("tile ranges", x_tiles, y_tiles)
-
     all_tasks = []
     async with aiohttp.ClientSession() as session:
-        for tile_zoom in [starter_zoom]:
-            for tile_x in x_tiles:
-                for tile_y in y_tiles:
-                    fetch_coro = async_mapbox_fetch_tile(
-                        session=session,
-                        cache=cache,
-                        key=key,
-                        tile_zoom=tile_zoom,
-                        tile_x=tile_x,
-                        tile_y=tile_y,
-                    )
-                    # TODO: cache should be outside of limiter
-                    #   and could probably use memoize(..., ignore=session)?
-                    coro = async_limited_fetch(fetch_coro, rate_limiter)
-                    all_tasks.append(asyncio.create_task(coro))
+        for tile_x, tile_y, tile_zoom in tiles:
+            fetch_coro = async_mapbox_fetch_tile(
+                session=session,
+                cache=cache,
+                key=key,
+                tile_zoom=tile_zoom,
+                tile_x=tile_x,
+                tile_y=tile_y,
+            )
+            # TODO: cache should be outside of limiter
+            #   and could probably use memoize(..., ignore=session)?
+            coro = async_limited_fetch(fetch_coro, rate_limiter)
+            all_tasks.append(asyncio.create_task(coro))
 
         print(f"there's {len(all_tasks)} tiles to fetch")
-        results = await asyncio.gather(*all_tasks)
+        results = await asyncio.gather(*all_tasks)  # todo: taskgroup?
     features = list(itertools.chain(*results))
     print(f"obtained {len(features)} features from {len(results)} tiles")
     return dict(features=features)
@@ -181,12 +209,12 @@ def feature_gen(content: List[Dict]) -> Generator[Feature, None, None]:
         full_coords = [
             d[0:2] for d in full_coords
         ]  # strip out height/elevation third coord
-        try:
-            # https://gis.stackexchange.com/a/8674
-            crush_coords = rdp.rdp(full_coords, epsilon=1e-4)  # maximum deviation
-        except Exception:
-            print(full_coords)
-            raise
+        # try:
+        #     # https://gis.stackexchange.com/a/8674
+        #     crush_coords = rdp.rdp(full_coords, epsilon=1e-4)  # maximum deviation
+        # except Exception:
+        #     print(full_coords)
+        #     raise
 
         yield Feature(
             # TODO: make crush thingy optional
@@ -286,21 +314,16 @@ def filter_by(
 
 
 def extract_from_mapbox(
-    centred_on: LatLon, radius: float, key: str, pbar_manager: enlighten.Manager
+    centred_on: LatLon, radius: float, region: Path|None, key: str, pbar_manager: enlighten.Manager
 ) -> List[Feature]:
-    geojson_data = mapbox_source(centred_on, radius, key)
-    return extract_geojson(geojson_data, centred_on, radius, pbar_manager)
-
-
-def extract_from_filepath(
-    filepath: Path, centred_on: LatLon, radius: float, pbar_manager: enlighten.Manager
-) -> List[Feature]:
-    geojson_data = json.loads(filepath.read_text())
-    return extract_geojson(geojson_data, centred_on, radius, pbar_manager)
+    within: Within = (region and path_to_poly(region)) or (centred_on, radius)
+    tiles = mapbox_tiles_for_extent(within)
+    geojson_data = mapbox_source(tiles, key)
+    return extract_geojson(geojson_data, within, pbar_manager)
 
 
 def extract_geojson(
-    geojson: dict, centred_on: LatLon, radius: float, pbar_manager: enlighten.Manager
+    geojson: dict, within: Within, pbar_manager: enlighten.Manager
 ) -> List[Feature]:
     geod = pyproj.Geod(ellps="WGS84")
 
@@ -314,14 +337,25 @@ def extract_geojson(
     )
     for f in feature_gen(geojson):
         progress_bar.update()
-        distance = geod.inv(f.centre.lon, f.centre.lat, centred_on.lon, centred_on.lat)[-1]
-        f.distance = distance
-        if distance > radius:
-            continue
+        shapely_feature = shapely.LineString(f.coords)
+
+        if isinstance(within, Polygon):
+            # get shapely to do the hard work
+            if not within.intersects(shapely_feature):
+                continue
+        else:
+            centred_on, radius = within
+            distance = geod.inv(f.centre.lon, f.centre.lat, centred_on.lon, centred_on.lat)[-1]
+            f.distance = distance
+            if distance > radius:
+                continue
+
         keepers.append(f)
         point_count += len(f.coords)
         full_point_count += f.original_coord_length
-        total_length += getattr(f, "length", 0)
+        trail_length = geod.geometry_length(shapely_feature)
+        # print(f"{trail_length:.2f}, {f.name}, {f.membermessage}, {f.grmuid}")
+        total_length += trail_length
     progress_bar.clear()
 
     # TODO: Geod.line_length() from pyproj to calculate "true" length of the byway itself, check for discrepencies?

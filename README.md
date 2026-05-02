@@ -74,6 +74,12 @@ supply it as follows:
 - Option 2: using dev tools network tab, extract the `pk.` key from the mapbox requests, 
   and provide it directly to the `--mapbox_key` argument
 
+# Custom regions
+A circle isn't always the ideal shape (we all know it's a triangle). You can set a custom polygon shape using
+geojson or kml files, by passing the filepath instead of the radius argument.
+
+Try https://geojson.io/next/ or Google Earth (web or desktop) (https://earth.google.com/).
+
 # Cache
 There's a weekly cache created in the current directory called "_grmcache"; it stores tile
 queries from mapbox and can be safely deleted.

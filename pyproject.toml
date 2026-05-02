@@ -9,12 +9,14 @@ dependencies = [
     "diskcache",
     "enlighten",
     "gpxpy",
+    "kml2geojson",
     "mapbox-vector-tile",
     "pgeocode",
     "pydantic",
     "pydantic-settings",
     "pyproj",
     "rdp",
+    "shapely",
 ]
 
 [project.urls]
