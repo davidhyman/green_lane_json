@@ -42,10 +42,10 @@ class Config(BaseSettings):
     postcode: CliPositionalArg[str] = Field(
         description='Postcode to center the circular filter on. e.g. AB123CD or "AB12 3CD"'
     )
-    radius: CliPositionalArg[int] = Field(
-        description="Radius around the postcode to filter by, in metres. e.g. 60000 would be 60km radius"
+    region_or_radius: CliPositionalArg[int | Path] = Field(
+        description="Radius around the postcode to filter by, in metres. e.g. 60000 would be 60km radius."
+                    "\nAlternatively, a GeoJSON or KML region polygon file, for a custom region (.json or .kml)."
     )
-    region: Path | None = Field(default=None, description='Location of GeoJSON or KML region polygon file, for a custom region (.json or .kml).')
     author: str = Field(
         default=default_author(),
         description='Set the author name for gpx files. Use quotes e.g. --author="Bobby Tables"',

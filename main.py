@@ -1,15 +1,14 @@
 import datetime
-from collections import Counter
 
 import enlighten
 
 from grm_export.models import Config, TRF_Restrictions
+from grm_export.poly import path_to_poly
 from grm_export.workflow import (
     as_gpx,
     export,
-    extract_from_mapbox,
     filter_by,
-    geo_deref,
+    geo_deref, mapbox_tiles_for_extent, mapbox_source, extract_geojson,
 )
 
 
@@ -19,14 +18,23 @@ def run():
     p_count = manager.counter(total=4, color="green", desc="Progress")
     p_count.update()
 
-    config = Config()  # Pydantic CLI config magic!
+    config = Config()  # Parse the Command Line Interface
 
     p_status.update("Extracting JSON")
     p_count.update()
 
     centred_on = geo_deref(config.postcode)
+    short_postcode = config.postcode.replace(" ", "").upper()
+    if isinstance(config.region_or_radius, int):
+        within = (centred_on, config.region_or_radius)
+        short_name =  f"{short_postcode} {config.region_or_radius / 1000:.0f}km"
+    else:
+        within = path_to_poly(config.region_or_radius)
+        short_name = f"{short_postcode} ({config.region_or_radius.stem})"
 
-    all_features = extract_from_mapbox(centred_on, config.radius, config.region, config.mapbox_key, manager)
+    tiles = mapbox_tiles_for_extent(within)
+    geojson_data = mapbox_source(tiles, config.mapbox_key)
+    all_features = extract_geojson(geojson_data, within, manager)
 
     p_status.update("Filter lanes by type")
     p_count.update()
@@ -67,8 +75,8 @@ def run():
         is_no_through=None,
     )
 
-    short_postcode = config.postcode.replace(" ", "").upper()
-    short_name = f"{short_postcode} ({config.region.stem})" if config.region else f"{short_postcode} {config.radius / 1000:.0f}km"
+
+
     short_date = datetime.date.today().isoformat()
 
     p_status.update("Generating GPX datasets")

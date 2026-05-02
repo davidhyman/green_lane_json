@@ -1,7 +1,6 @@
 import asyncio
 import datetime
 import itertools
-import json
 import math
 import re
 from pathlib import Path
@@ -14,14 +13,11 @@ import gpxpy
 import mapbox_vector_tile
 import pgeocode
 import pyproj
-import rdp
 import shapely
 from asynciolimiter import Limiter
 from shapely import Polygon
 
-from grm_export import poly
 from grm_export.models import Feature, LatLon, TRF_Restrictions
-from grm_export.poly import path_to_poly
 from grm_export.utils import get_cache
 
 clean_text_re = re.compile(r"[^\w\n\ \.\,]+")
@@ -311,15 +307,6 @@ def filter_by(
     #         f for f in keep if f.no_through_route == is_no_through
     #     ]
     return keep
-
-
-def extract_from_mapbox(
-    centred_on: LatLon, radius: float, region: Path|None, key: str, pbar_manager: enlighten.Manager
-) -> List[Feature]:
-    within: Within = (region and path_to_poly(region)) or (centred_on, radius)
-    tiles = mapbox_tiles_for_extent(within)
-    geojson_data = mapbox_source(tiles, key)
-    return extract_geojson(geojson_data, within, pbar_manager)
 
 
 def extract_geojson(

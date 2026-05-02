@@ -1,7 +1,6 @@
 import datetime
 import getpass
 import re
-import sys
 from pathlib import Path
 
 import diskcache

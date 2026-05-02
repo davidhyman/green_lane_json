@@ -47,19 +47,20 @@ trf_export.exe -h
 
 Extracts gps traces from the TRF dataset. See README.md or https://github.com/davidhyman/green_lane_json for instructions.
 
-positional arguments:
-  POSTCODE      Postcode to center the circular filter on. e.g. AB123CD or "AB12 3CD"
-  RADIUS        Radius around the postcode to filter by, in metres. e.g. 60000 would be 60km radius
-
-options:
-  -h, --help    show this help message and exit
-  --author str  Set the author name for gpx files. Use quotes e.g. --author="Bobby Tables"
-  --mapbox_key {str,Path} Supply the mapbox key, or path to search. See README.
+positional arguments:                                                                                                                                                                                                                                                                                               
+  POSTCODE              Postcode to center the circular filter on. e.g. AB123CD or "AB12 3CD"                                                                                                                                                                                                                       
+  REGION_OR_RADIUS      Radius around the postcode to filter by, in metres. e.g. 60000 would be 60km radius. Alternatively, a GeoJSON or KML region polygon file, for a custom region (.json or .kml).                                                                                                              
+                                                                                                                                                                                                                                                                                                                    
+options:                                                                                                                                                                                                                                                                                                            
+  -h, --help            show this help message and exit                                                                                                                                                                                                                                                             
+  --author str          Set the author name for gpx files. Use quotes e.g. --author="Bobby Tables" (default: David)                                                                                                                                                                                                 
+  --mapbox_key {str,Path}                                                                                                                                                                                                                                                                                           
+                        Supply the mapbox key, or path to search. See README. (default: C:\Users\$USER\Documents\Downloads) 
 ```
 
 Run on the TRF json for 30km around Cambridge (CB1):
 ```shell
-trf_export.exe CB1 30000 --mapbox_key=...
+trf_export.exe CB1 --radius=30000 --mapbox_key=...
 ```
 This will then print some progress messages and deposit the `.gpx` files in the current directory. Enjoy responsibly! 🍻
 
