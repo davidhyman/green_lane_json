@@ -6,4 +6,14 @@ That would be good.
 
 Developed in Python 3.12 on Windows.
 
-```pyinstaller main.py -n trf_export --onefile```
+```shell
+pip install -e . --group=dev
+```
+
+```shell
+python -m pip lock .
+```
+
+```shell
+pyinstaller main.py -n trf_export --onefile
+```
